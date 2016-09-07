@@ -1,6 +1,7 @@
 import os
 import sys
 import time
+import base64
 
 import json
 import requests
@@ -15,7 +16,7 @@ CONSUMER_SECRET = 'your-consumer-secret'
 ACCESS_TOKEN = 'your-access-token'
 ACCESS_TOKEN_SECRET = 'your-access-secret'
 
-VIDEO_FILENAME = 'path/to/video/file'
+VIDEO_FILENAME = 'icon.jpg'
 
 
 oauth = OAuth1(CONSUMER_KEY,
@@ -44,9 +45,9 @@ class VideoTweet(object):
 
     request_data = {
       'command': 'INIT',
-      'media_type': 'video/mp4',
+      'media_type': 'image/jpg',
       'total_bytes': self.total_bytes,
-      'media_category': 'tweetvideo'
+      'media_category': 'tweetimage'
     }
 
     req = requests.post(url=MEDIA_ENDPOINT_URL, data=request_data, auth=oauth)
@@ -62,12 +63,17 @@ class VideoTweet(object):
     Uploads media in chunks and appends to chunks uploaded
     '''
     segment_id = 0
-    bytes_sent = 0
-    file = open(self.video_filename, 'rb')
+    characters_sent = 0
 
-    while bytes_sent < self.total_bytes:
-      chunk = file.read(4*1024*1024)
-      
+    with open(self.video_filename, 'rb') as fp:
+      file_base64 = base64.b64encode(fp.read())
+
+    chunk_size = len(file_base64) // 2
+
+    while characters_sent < len(file_base64):
+
+      chunk = file_base64[characters_sent:characters_sent+chunk_size]
+
       print('APPEND')
 
       request_data = {
@@ -77,7 +83,7 @@ class VideoTweet(object):
       }
 
       files = {
-        'media':chunk
+        'media_data':chunk
       }
 
       req = requests.post(url=MEDIA_ENDPOINT_URL, data=request_data, files=files, auth=oauth)
@@ -88,9 +94,9 @@ class VideoTweet(object):
         sys.exit(0)
 
       segment_id = segment_id + 1
-      bytes_sent = file.tell()
+      characters_sent = characters_sent + chunk_size
 
-      print('%s of %s bytes uploaded' % (str(bytes_sent), str(self.total_bytes)))
+      print('%s of %s characters uploaded' % (str(characters_sent), str(len(file_base64))))
 
     print('Upload chunks complete.')
 
@@ -131,7 +137,7 @@ class VideoTweet(object):
       sys.exit(0)
 
     check_after_secs = self.processing_info['check_after_secs']
-    
+
     print('Checking after %s seconds' % str(check_after_secs))
     time.sleep(check_after_secs)
 
@@ -143,7 +149,7 @@ class VideoTweet(object):
     }
 
     req = requests.get(url=MEDIA_ENDPOINT_URL, params=request_params, auth=oauth)
-    
+
     self.processing_info = req.json().get('processing_info', None)
     self.check_status()
 
